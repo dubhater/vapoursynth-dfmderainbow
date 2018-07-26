@@ -21,14 +21,18 @@ Parameters:
         A clip to process.
 
     *maskthresh*
+        Larger values will derainbow more.
         
         Default: 10.
 
     *mask*
+        If True, the function will return a mask showing the areas
+        that won't be filtered. Use it to tune *maskthresh*.
 
         Default: False.
 
     *interlaced*
+        Set to True if *clip* is interlaced.
     
         Default: False.
 
