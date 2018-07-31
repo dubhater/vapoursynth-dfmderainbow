@@ -100,11 +100,22 @@ def DFMDerainbow(clip, maskthresh=10, mask=False, interlaced=False, radius=None)
         return output
 
 
-def DFMDerainbowMC(clip, maskthresh=12, radius=1):
+def DFMDerainbowMC(clip, maskthresh=12, radius=1, motion_vectors=None):
     # Do inverse telecine first.
 
     if radius < 1 or radius > 2:
         raise ValueError("DFMDerainbowMC: radius must be 1 or 2.")
+
+    if motion_vectors is not None:
+        if not isinstance(motion_vectors, list):
+            raise TypeError("DFMDerainbowMC: motion_vectors must be a list.")
+
+        if len(motion_vectors) != radius * 2:
+            raise ValueError("DFMDerainbowMC: motion_vectors must be a list of {} clips (radius * 2).".format(radius * 2))
+
+        for i in range(len(motion_vectors)):
+            if not isinstance(motion_vectors[i], vs.VideoNode):
+                raise TypeError("DFMDerainbowMC: motion_vectors[{}] must be a clip, not {}.".format(i, type(motion_vectors[i])))
 
     core = vs.get_core()
 
@@ -114,18 +125,28 @@ def DFMDerainbowMC(clip, maskthresh=12, radius=1):
     derbsuper = core.mv.Super(clip=clip, levels=1) # one level is enough for Compensate
 
     if radius == 1:
-        derbbackward_vectors = core.mv.Analyse(super=derbsuperfilt, isb=True, chroma=False)
-        derbforward_vectors = core.mv.Analyse(super=derbsuperfilt, isb=False, chroma=False)
+        if motion_vectors is None:
+            derbforward_vectors = core.mv.Analyse(super=derbsuperfilt, isb=False, chroma=False)
+            derbbackward_vectors = core.mv.Analyse(super=derbsuperfilt, isb=True, chroma=False)
+        else:
+            derbforward_vectors = motion_vectors[0]
+            derbbackward_vectors = motion_vectors[1]
 
         derbforward_compensation = core.mv.Compensate(clip=clip, super=derbsuper, vectors=derbforward_vectors)
         derbbackward_compensation = core.mv.Compensate(clip=clip, super=derbsuper, vectors=derbbackward_vectors)
 
         compensated = core.std.Interleave(clips=[derbforward_compensation, clip, derbbackward_compensation])
     elif radius == 2:
-        derbbackward_vectors2 = core.mv.Analyse(super=derbsuperfilt, isb=True, delta=2, overlap=4, chroma=True, search=5, searchparam=4)
-        derbbackward_vectors1 = core.mv.Analyse(super=derbsuperfilt, isb=True, delta=1, overlap=4, chroma=True, search=5, searchparam=4)
-        derbforward_vectors1 = core.mv.Analyse(super=derbsuperfilt, isb=False, delta=1, overlap=4, chroma=True, search=5, searchparam=4)
-        derbforward_vectors2 = core.mv.Analyse(super=derbsuperfilt, isb=False, delta=2, overlap=4, chroma=True, search=5, searchparam=4)
+        if motion_vectors is None:
+            derbforward_vectors2 = core.mv.Analyse(super=derbsuperfilt, isb=False, delta=2, overlap=4, chroma=True, search=5, searchparam=4)
+            derbforward_vectors1 = core.mv.Analyse(super=derbsuperfilt, isb=False, delta=1, overlap=4, chroma=True, search=5, searchparam=4)
+            derbbackward_vectors1 = core.mv.Analyse(super=derbsuperfilt, isb=True, delta=1, overlap=4, chroma=True, search=5, searchparam=4)
+            derbbackward_vectors2 = core.mv.Analyse(super=derbsuperfilt, isb=True, delta=2, overlap=4, chroma=True, search=5, searchparam=4)
+        else:
+            derbforward_vectors2 = motion_vectors[0]
+            derbforward_vectors1 = motion_vectors[1]
+            derbbackward_vectors1 = motion_vectors[2]
+            derbbackward_vectors2 = motion_vectors[3]
 
         derbforward_compensation2 = core.mv.Compensate(clip=clip, super=derbsuper, vectors=derbforward_vectors2, thscd1=600, thscd2=160)
         derbforward_compensation1 = core.mv.Compensate(clip=clip, super=derbsuper, vectors=derbforward_vectors1, thscd1=600, thscd2=160)

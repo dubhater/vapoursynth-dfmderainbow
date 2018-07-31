@@ -44,7 +44,7 @@ Parameters:
 
 ::
 
-    DFMDerainbowMC(clip[, maskthresh=12, radius=1])
+    DFMDerainbowMC(clip[, maskthresh=12, radius=1, motion_vectors=None])
 
 
 Parameters:
@@ -55,9 +55,27 @@ Parameters:
 
     *radius*
         Temporal radius for the motion compensation and for
-        DFMDerainbow.
+        DFMDerainbow. Must be 1 or 2.
 
         Default: 1.
+
+    *motion_vectors*
+        A list of clips obtained by calling mv.Analyse or
+        mv.Recalculate.
+
+        With this parameter one can reuse the motion vectors from
+        other motion-compensated filtering.
+
+        The clips must be in this order:
+            0. clip created with isb=False, delta=2. This clip should be omitted if *radius* is 1.
+            1. clip created with isb=False, delta=1.
+            2. clip created with isb=True, delta=1.
+            3. clip created with isb=True, delta=2. This clip should be omitted if *radius* is 1.
+        
+        If this parameter is not used, the motion vectors will be
+        created internally.
+
+        Default: None.
 
 
 Requirements
