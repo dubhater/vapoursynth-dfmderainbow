@@ -75,6 +75,22 @@ Parameters:
         If this parameter is not used, the motion vectors will be
         created internally.
 
+        Example of derainbowing and degraining using the same motion
+        vectors for both::
+
+            clip = your video here
+
+            clip_super = core.mv.Super(clip=clip)
+
+            forward2 = core.mv.Analyse(super=clip_super, isb=False, delta=2, chroma=False)
+            forward1 = core.mv.Analyse(super=clip_super, isb=False, delta=1, chroma=False)
+            backward1 = core.mv.Analyse(super=clip_super, isb=True, delta=1, chroma=False)
+            backward2 = core.mv.Analyse(super=clip_super, isb=True, delta=2, chroma=False)
+
+            clip = DFMDerainbowMC(clip=clip, motion_vectors=[forward2, forward1, backward1, backward2])
+
+            clip = core.mv.Degrain2(clip=clip, super=clip_super, mvbw=backward1, mvfw=forward1, mvbw2=backward2, mvfw2=forward2)
+
         Default: None.
 
 
