@@ -70,7 +70,7 @@ def DFMDerainbow(clip, maskthresh=10, mask=False, interlaced=False, radius=None)
         first = clip.flux.SmoothT(temporal_threshold=17, planes=[1, 2])
     elif radius == 2:
         first = Flux5FramesT(clip=clip, temporal_threshold=17, planes=[1, 2])
-    first = BlurForDFMDerainbow(clip=clip, amount=1.5, planes=[1, 2])
+    first = BlurForDFMDerainbow(clip=first, amount=1.5, planes=[1, 2])
 
     themask = core.std.MakeDiff(clipa=clip, clipb=first, planes=[1, 2])
     themask = core.std.Levels(clip=themask, min_in=108, gamma=1, max_in=148, min_out=0, max_out=255, planes=[1, 2])
