@@ -22,7 +22,7 @@ def BlurForDFMDerainbow(clip, amount=0, planes=None):
 
 
 def Flux5FramesT(clip, temporal_threshold=7, planes=None):
-    core = vs.get_core()
+    core = vs.core
 
     median = core.tmedian.TemporalMedian(clip=clip, radius=2, planes=planes)
 
@@ -61,7 +61,7 @@ def DFMDerainbow(clip, maskthresh=10, mask=False, interlaced=False, radius=None)
     if radius < 1 or radius > 2:
         raise ValueError("DFMDerainbow: radius must be 1 or 2.")
 
-    core = vs.get_core()
+    core = vs.core
 
     if interlaced:
         clip = clip.std.SeparateFields(tff=True)
@@ -117,7 +117,7 @@ def DFMDerainbowMC(clip, maskthresh=12, radius=1, motion_vectors=None):
             if not isinstance(motion_vectors[i], vs.VideoNode):
                 raise TypeError("DFMDerainbowMC: motion_vectors[{}] must be a clip, not {}.".format(i, type(motion_vectors[i])))
 
-    core = vs.get_core()
+    core = vs.core
 
     prefiltered = clip.fft3dfilter.FFT3DFilter(sigma=1.5, bw=16, bh=16, bt=3, ow=8, oh=8, planes=0)
 
