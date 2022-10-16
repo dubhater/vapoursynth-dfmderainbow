@@ -5,7 +5,7 @@ def BlurForDFMDerainbow(clip, amount=0, planes=None):
     lower_limit = 0
     upper_limit = 1.5849625
     if amount < lower_limit or amount > upper_limit:
-        raise ValueError("BlurForDFMDerainbow: amount must be between {} and {}.".format(lower_limit, upper_limit))
+        raise ValueError(f"BlurForDFMDerainbow: amount must be between {lower_limit} and {upper_limit}.")
 
     center_weight = 1 / pow(2, amount)
     side_weight = (1 - center_weight) / 2
@@ -21,8 +21,14 @@ def BlurForDFMDerainbow(clip, amount=0, planes=None):
     return clip.std.Convolution(matrix=blur_matrix, planes=planes)
 
 
-def Flux5FramesT(clip, temporal_threshold=7, planes=None):
+def Flux5FramesT(clip, temporal_threshold=None, planes=None):
     core = vs.core
+
+    shift = clip.format.bits_per_sample - 8
+    neutral = 1 << (clip.format.bits_per_sample - 1)
+
+    if temporal_threshold is None:
+        temporal_threshold = 7 << shift
 
     median = core.tmedian.TemporalMedian(clip=clip, radius=2, planes=planes)
 
@@ -41,7 +47,7 @@ def Flux5FramesT(clip, temporal_threshold=7, planes=None):
     median_diff = core.std.MakeDiff(clipa=clip, clipb=median, planes=planes)
     average_diff = core.std.MakeDiff(clipa=clip, clipb=average, planes=planes)
 
-    expression = "x 128 - y 128 - * 0 < 128 x 128 - abs y 128 - abs < x y ? ?"
+    expression = f"x {neutral} - y {neutral} - * 0 < {neutral} x {neutral} - abs y {neutral} - abs < x y ? ?"
 
     expr = [
             expression if planes is None or 0 in planes else "",
@@ -54,6 +60,16 @@ def Flux5FramesT(clip, temporal_threshold=7, planes=None):
     return core.std.MakeDiff(clipa=clip, clipb=DD, planes=planes)
 
 
+"""
+DFMDerainbow - "Double Fluxsmooth Derainbow"
+
+Supports 8..16 bit integer formats
+
+Parameters:
+    * maskthresh = 0-255, default = 10, reinterpreted as a percentage and fed into MSharpen "threshold" parameter.
+    * mask: True-False, default = False, returns the mask used for rainbow detection as a clip. Useful for tuning maskthresh
+    * radius: 1-2, default = 1, the temporal smoothing radius.
+"""
 def DFMDerainbow(clip, maskthresh=10, mask=False, interlaced=False, radius=None):
     if radius is None:
         radius = 1
@@ -61,34 +77,38 @@ def DFMDerainbow(clip, maskthresh=10, mask=False, interlaced=False, radius=None)
     if radius < 1 or radius > 2:
         raise ValueError("DFMDerainbow: radius must be 1 or 2.")
 
+    if clip.format.sample_type != vs.INTEGER or clip.format.bits_per_sample < 8 or clip.format.bits_per_sample > 16:
+        raise TypeError("DFMDerainbow: Only 8-16 bit integer formats are supported.")
+
     core = vs.core
+    shift = clip.format.bits_per_sample - 8
 
     if interlaced:
         clip = clip.std.SeparateFields(tff=True)
 
     if radius == 1:
-        first = clip.flux.SmoothT(temporal_threshold=17, planes=[1, 2])
+        first = clip.flux.SmoothT(temporal_threshold=17 << shift, planes=[1, 2])
     elif radius == 2:
-        first = Flux5FramesT(clip=clip, temporal_threshold=17, planes=[1, 2])
+        first = Flux5FramesT(clip=clip, temporal_threshold=17 << shift, planes=[1, 2])
     first = BlurForDFMDerainbow(clip=first, amount=1.5, planes=[1, 2])
 
     themask = core.std.MakeDiff(clipa=clip, clipb=first, planes=[1, 2])
-    themask = core.std.Levels(clip=themask, min_in=108, gamma=1, max_in=148, min_out=0, max_out=255, planes=[1, 2])
+    themask = core.std.Levels(clip=themask, min_in=108 << shift, gamma=1, max_in=148 << shift, min_out=0, max_out=255 << shift, planes=[1, 2])
     themask = core.msmoosh.MSharpen(clip=themask, mask=True, threshold=maskthresh * 100 / 255, planes=[1, 2])
     themask = core.std.Invert(clip=themask, planes=[1, 2])
     themask = BlurForDFMDerainbow(clip=themask, amount=0.5, planes=[1, 2])
-    themask = core.std.Levels(clip=themask, min_in=0, gamma=2, max_in=255, min_out=0, max_out=255, planes=[1, 2])
+    themask = core.std.Levels(clip=themask, min_in=0, gamma=2, max_in=255 << shift, min_out=0, max_out=255 << shift, planes=[1, 2])
     themask = BlurForDFMDerainbow(clip=themask, amount=0.5, planes=[1, 2])
 
     if mask:
         return themask
     else:
-        fixed = clip.flux.SmoothST(temporal_threshold=17, spatial_threshold=14, planes=[1, 2])
+        fixed = clip.flux.SmoothST(temporal_threshold=17 << shift, spatial_threshold=14 << shift, planes=[1, 2])
         if radius == 1:
-            fixed = fixed.flux.SmoothT(temporal_threshold=17, planes=[1, 2])
+            fixed = fixed.flux.SmoothT(temporal_threshold=17 << shift, planes=[1, 2])
         elif radius == 2:
-            fixed = Flux5FramesT(clip=fixed, temporal_threshold=17, planes=[1, 2])
-        fixed = fixed.minideen.MiniDeen(radius=4, threshold=14, planes=[1, 2])
+            fixed = Flux5FramesT(clip=fixed, temporal_threshold=17 << shift, planes=[1, 2])
+        fixed = fixed.minideen.MiniDeen(radius=4, threshold=14, planes=[1, 2]) # Minideen scales its 'threshold' parameter to bit depth internally
         fixed = BlurForDFMDerainbow(clip=fixed, amount=1.0, planes=[1, 2])
 
         output = core.std.MaskedMerge(clipa=fixed, clipb=clip, mask=themask, planes=[1, 2])
@@ -99,7 +119,12 @@ def DFMDerainbow(clip, maskthresh=10, mask=False, interlaced=False, radius=None)
 
         return output
 
+"""
+DFMDerainbowMC
 
+Supports 8-16 bit integer formats. No interlaced support, progressive only!
+
+"""
 def DFMDerainbowMC(clip, maskthresh=12, radius=1, motion_vectors=None):
     # Do inverse telecine first.
 
